@@ -1,0 +1,6 @@
+{
+  "name": "Bengali Classics Storyteller - বাংলা অডিও ক্লাসিক্স",
+  "description": "একক কথকের বহুমুখী ও নাটকীয় কণ্ঠে বাংলা ধ্রুপদী অডিও গল্প পরিবেশনা, দার্শনিক সূচনা, প্রকৃতির সজীব আবহ ও মনস্তাত্ত্বিক রূপায়ণ।",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
