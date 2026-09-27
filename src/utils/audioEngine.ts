@@ -3,6 +3,13 @@
  * Designed for @BengaliClassicsByArnab Solo Versatile Performance
  */
 
+import {
+  getAudioFromStorage,
+  saveAudioToStorage,
+  getSceneCacheKey,
+  getAllAudioKeysFromStorage,
+} from './audioStorage';
+
 export type AmbientMood =
   | 'dawn_mist'
   | 'monsoon_rain'
@@ -107,6 +114,7 @@ class StoryAudioEngine {
   // Speech Synthesis & AI Neural Audio
   private currentUtterance: SpeechSynthesisUtterance | null = null;
   private currentAudioSource: AudioBufferSourceNode | null = null;
+  private currentEnvelopeGain: GainNode | null = null;
   private speechGain: GainNode | null = null;
   private bengaliVoices: SpeechSynthesisVoice[] = [];
   private selectedVoice: SpeechSynthesisVoice | null = null;
@@ -179,6 +187,10 @@ class StoryAudioEngine {
 
   public setVoice(voice: SpeechSynthesisVoice) {
     this.selectedVoice = voice;
+  }
+
+  public getAudioContext(): AudioContext {
+    return this.getContext();
   }
 
   private getContext(): AudioContext {
@@ -597,7 +609,9 @@ class StoryAudioEngine {
         osc.frequency.exponentialRampToValueAtTime(3200, now + 0.08);
         osc.frequency.exponentialRampToValueAtTime(2100, now + 0.16);
 
-        gain.gain.setValueAtTime(0.04, now);
+        // Anti-pop smooth attack ramp
+        gain.gain.setValueAtTime(0.0001, now);
+        gain.gain.linearRampToValueAtTime(0.04, now + 0.012);
         gain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
 
         osc.connect(gain);
@@ -610,7 +624,8 @@ class StoryAudioEngine {
       case 'thunder': {
         const noise = this.createPinkNoise(ctx, 150);
         const gain = ctx.createGain();
-        gain.gain.setValueAtTime(0.3, now);
+        gain.gain.setValueAtTime(0.0001, now);
+        gain.gain.linearRampToValueAtTime(0.3, now + 0.02);
         gain.gain.exponentialRampToValueAtTime(0.001, now + 2.4);
 
         noise.connect(gain);
@@ -631,7 +646,8 @@ class StoryAudioEngine {
           osc2.type = 'sine';
           osc2.frequency.setValueAtTime(2140, now + offset);
 
-          gain.gain.setValueAtTime(0.12, now + offset);
+          gain.gain.setValueAtTime(0.0001, now + offset);
+          gain.gain.linearRampToValueAtTime(0.12, now + offset + 0.01);
           gain.gain.exponentialRampToValueAtTime(0.001, now + offset + 0.6);
 
           osc1.connect(gain);
@@ -656,7 +672,9 @@ class StoryAudioEngine {
         osc.frequency.setValueAtTime(80, now);
         osc.frequency.exponentialRampToValueAtTime(30, now + 0.4);
 
-        gain.gain.setValueAtTime(0.5, now);
+        // Anti-pop smooth attack ramp
+        gain.gain.setValueAtTime(0.0001, now);
+        gain.gain.linearRampToValueAtTime(0.5, now + 0.015);
         gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
 
         osc.connect(gain);
@@ -681,7 +699,8 @@ class StoryAudioEngine {
         filter.type = 'bandpass';
         filter.frequency.setValueAtTime(450, now);
 
-        gain.gain.setValueAtTime(0.08, now);
+        gain.gain.setValueAtTime(0.0001, now);
+        gain.gain.linearRampToValueAtTime(0.08, now + 0.02);
         gain.gain.exponentialRampToValueAtTime(0.001, now + 1.0);
 
         osc.connect(filter);
@@ -696,7 +715,8 @@ class StoryAudioEngine {
       case 'paper_tear': {
         const noise = this.createPinkNoise(ctx, 3000);
         const gain = ctx.createGain();
-        gain.gain.setValueAtTime(0.2, now);
+        gain.gain.setValueAtTime(0.0001, now);
+        gain.gain.linearRampToValueAtTime(0.2, now + 0.015);
         gain.gain.linearRampToValueAtTime(0.35, now + 0.15);
         gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
 
@@ -810,7 +830,7 @@ class StoryAudioEngine {
     return filter;
   }
 
-  // --- SOLO STORYTELLER SPEECH SYNTHESIS (GEMINI NEURAL AI + BROWSER FALLBACK) ---
+  // --- SOLO STORYTELLER SPEECH SYNTHESIS (GEMINI NEURAL AI - ARNAB VOICE) ---
   public async speakScene(
     text: string,
     characterKey: string,
@@ -827,17 +847,8 @@ class StoryAudioEngine {
   ) {
     this.stopSpeech();
 
-    // Check if Gemini Neural is requested
+    // Guaranteed: Gemini Neural (Arnab Voice - Pure Shuddho Bangla)
     if (this.speechEngineMode === 'gemini_neural') {
-      const now = Date.now();
-      if (this.isRateLimited && now < this.rateLimitExpiresAt) {
-        // Active quota cooldown: seamlessly speak using browser speech synthesis
-        const remainingSec = Math.max(1, Math.ceil((this.rateLimitExpiresAt - now) / 1000));
-        this.notifyRateLimit(true, remainingSec, this.rateLimitReason);
-        this.speakWithBrowserNative(text, characterKey, customSpeedMultiplier, callbacks);
-        return;
-      }
-
       try {
         const played = await this.speakWithGeminiNeural(text, characterKey, callbacks, meta);
         if (played) {
@@ -847,11 +858,16 @@ class StoryAudioEngine {
           return;
         }
       } catch (err) {
-        // Fallback to browser voice seamlessly without crashing playback
+        console.warn('Gemini Neural playback error:', err);
       }
+
+      // Strict enforcement: Never fall back to robotic English-accented browser speech.
+      // Inform listener/caller so playback waits or retries in authentic Arnab voice.
+      callbacks?.onError?.(new Error('আর্নব ভয়েস প্রস্তুত হচ্ছে, অনুগ্রহ করে অপেক্ষা করুন...'));
+      return;
     }
 
-    // Browser Native Speech Synthesis Fallback
+    // Browser Native Speech (Only used if explicitly selected by user in advanced settings)
     this.speakWithBrowserNative(text, characterKey, customSpeedMultiplier, callbacks);
   }
 
@@ -869,10 +885,20 @@ class StoryAudioEngine {
     }
   ): Promise<boolean> {
     const ctx = this.getContext();
-    const cacheKey = `${this.geminiVoicePersona}-${characterKey}-${text.trim()}`;
+    const cacheKey = getSceneCacheKey(this.geminiVoicePersona, characterKey, text);
 
     let audioBuffer = this.audioCache.get(cacheKey);
 
+    // 1. If not in memory, check browser persistent storage (IndexedDB)
+    if (!audioBuffer) {
+      const stored = await getAudioFromStorage(cacheKey);
+      if (stored && stored.audioBase64) {
+        audioBuffer = this.decodePcmToBuffer(ctx, stored.audioBase64, stored.sampleRate || 24000);
+        this.audioCache.set(cacheKey, audioBuffer);
+      }
+    }
+
+    // 2. If not in storage, fetch from server API
     if (!audioBuffer) {
       try {
         const res = await fetch('/api/tts/generate', {
@@ -905,9 +931,20 @@ class StoryAudioEngine {
           return false;
         }
 
-        // Decode base64 PCM 24000Hz (16-bit little-endian) to AudioBuffer
+        // Decode base64 PCM 24000Hz (16-bit little-endian) to AudioBuffer with anti-noise smoothing
         audioBuffer = this.decodePcmToBuffer(ctx, data.audioBase64, data.sampleRate || 24000);
         this.audioCache.set(cacheKey, audioBuffer);
+
+        // Persist to browser IndexedDB so it's never lost on refresh
+        saveAudioToStorage({
+          key: cacheKey,
+          voicePersona: this.geminiVoicePersona,
+          characterKey,
+          textSnippet: text.slice(0, 60),
+          audioBase64: data.audioBase64,
+          sampleRate: data.sampleRate || 24000,
+          createdAt: Date.now(),
+        }).catch((err) => console.warn('Failed to cache speech in IndexedDB:', err));
       } catch (networkErr) {
         return false;
       }
@@ -915,16 +952,36 @@ class StoryAudioEngine {
 
     if (!audioBuffer) return false;
 
-    // Play buffer through Web Audio node graph (with vintage warmth & master gain)
+    // 3. Play buffer through Web Audio node graph with anti-pop / click-free envelope
     const source = ctx.createBufferSource();
     source.buffer = audioBuffer;
-    source.connect(this.speechGain || this.masterGain!);
+
+    const envelopeGain = ctx.createGain();
+    const now = ctx.currentTime;
+
+    // 20ms soft attack ramp to eliminate starting pop/click
+    envelopeGain.gain.setValueAtTime(0.0001, now);
+    envelopeGain.gain.linearRampToValueAtTime(1.0, now + 0.02);
+
+    // Schedule 35ms soft release ramp before end of buffer to eliminate ending cutoff pop
+    const fadeOutStart = Math.max(0.02, audioBuffer.duration - 0.035);
+    envelopeGain.gain.setValueAtTime(1.0, now + fadeOutStart);
+    envelopeGain.gain.linearRampToValueAtTime(0.0001, now + audioBuffer.duration);
+
+    source.connect(envelopeGain);
+    envelopeGain.connect(this.speechGain || this.masterGain!);
 
     this.currentAudioSource = source;
+    this.currentEnvelopeGain = envelopeGain;
 
     source.onended = () => {
       if (this.currentAudioSource === source) {
         this.currentAudioSource = null;
+        this.currentEnvelopeGain = null;
+        try {
+          source.disconnect();
+          envelopeGain.disconnect();
+        } catch (e) {}
         callbacks?.onEnd?.();
       }
     };
@@ -945,8 +1002,17 @@ class StoryAudioEngine {
     // Do not preload if in rate limit cooldown to conserve quota
     if (this.isRateLimited && Date.now() < this.rateLimitExpiresAt) return;
 
-    const cacheKey = `${this.geminiVoicePersona}-${characterKey}-${text.trim()}`;
+    const cacheKey = getSceneCacheKey(this.geminiVoicePersona, characterKey, text);
     if (this.audioCache.has(cacheKey)) return;
+
+    // Check IndexedDB before network fetch
+    const stored = await getAudioFromStorage(cacheKey);
+    if (stored && stored.audioBase64) {
+      const ctx = this.getContext();
+      const buffer = this.decodePcmToBuffer(ctx, stored.audioBase64, stored.sampleRate || 24000);
+      this.audioCache.set(cacheKey, buffer);
+      return;
+    }
 
     try {
       const res = await fetch('/api/tts/generate', {
@@ -972,6 +1038,17 @@ class StoryAudioEngine {
           const ctx = this.getContext();
           const buffer = this.decodePcmToBuffer(ctx, data.audioBase64, data.sampleRate || 24000);
           this.audioCache.set(cacheKey, buffer);
+
+          // Save to IndexedDB
+          await saveAudioToStorage({
+            key: cacheKey,
+            voicePersona: this.geminiVoicePersona,
+            characterKey,
+            textSnippet: text.slice(0, 60),
+            audioBase64: data.audioBase64,
+            sampleRate: data.sampleRate || 24000,
+            createdAt: Date.now(),
+          });
         }
       }
     } catch (e) {
@@ -979,7 +1056,11 @@ class StoryAudioEngine {
     }
   }
 
-  private decodePcmToBuffer(ctx: AudioContext, base64Pcm: string, sampleRate: number): AudioBuffer {
+  /**
+   * Decode base64 16-bit PCM to AudioBuffer with DC-offset elimination and boundary de-clicking
+   * Completely removes transition pops, clicks, or noises when shifting between scenes.
+   */
+  public decodePcmToBuffer(ctx: BaseAudioContext, base64Pcm: string, sampleRate: number): AudioBuffer {
     const binary = atob(base64Pcm);
     const len = binary.length;
     const bytes = new Uint8Array(len);
@@ -992,11 +1073,40 @@ class StoryAudioEngine {
     const audioBuffer = ctx.createBuffer(1, int16.length, sampleRate);
     const channelData = audioBuffer.getChannelData(0);
 
+    // 1. Calculate DC offset
+    let sum = 0;
     for (let i = 0; i < int16.length; i++) {
-      channelData[i] = int16[i] / 32768.0;
+      sum += int16[i];
+    }
+    const dcOffset = int16.length > 0 ? sum / int16.length / 32768.0 : 0;
+
+    // 2. Normalize and subtract DC offset
+    for (let i = 0; i < int16.length; i++) {
+      channelData[i] = int16[i] / 32768.0 - dcOffset;
+    }
+
+    // 3. Micro raised-cosine (Hann) fade-in & fade-out on buffer boundaries (512 samples ~21ms at 24kHz)
+    // Ensures starting and ending values meet exact zero with zero derivative, eliminating all pops
+    const fadeLen = Math.min(512, Math.floor(channelData.length / 4));
+    for (let i = 0; i < fadeLen; i++) {
+      const ramp = 0.5 * (1 - Math.cos((Math.PI * i) / fadeLen));
+      channelData[i] *= ramp;
+    }
+    for (let i = 0; i < fadeLen; i++) {
+      const idx = channelData.length - 1 - i;
+      const ramp = 0.5 * (1 - Math.cos((Math.PI * i) / fadeLen));
+      channelData[idx] *= ramp;
     }
 
     return audioBuffer;
+  }
+
+  public getCachedAudio(cacheKey: string): AudioBuffer | undefined {
+    return this.audioCache.get(cacheKey);
+  }
+
+  public setCachedAudio(cacheKey: string, buffer: AudioBuffer) {
+    this.audioCache.set(cacheKey, buffer);
   }
 
   private speakWithBrowserNative(
@@ -1060,8 +1170,41 @@ class StoryAudioEngine {
     window.speechSynthesis.speak(utterance);
   }
 
-  public stopSpeech() {
-    if (this.currentAudioSource) {
+  public stopSpeech(immediate: boolean = false) {
+    if (this.currentEnvelopeGain && this.ctx) {
+      const now = this.ctx.currentTime;
+      const oldGain = this.currentEnvelopeGain;
+      const oldSource = this.currentAudioSource;
+      this.currentEnvelopeGain = null;
+      this.currentAudioSource = null;
+
+      if (immediate) {
+        try {
+          oldSource?.stop();
+          oldSource?.disconnect();
+          oldGain.disconnect();
+        } catch (e) {}
+      } else {
+        try {
+          oldGain.gain.cancelScheduledValues(now);
+          oldGain.gain.setValueAtTime(Math.max(0.0001, oldGain.gain.value), now);
+          oldGain.gain.linearRampToValueAtTime(0.0001, now + 0.035); // 35ms soft anti-pop release
+          setTimeout(() => {
+            try {
+              oldSource?.stop();
+              oldSource?.disconnect();
+              oldGain.disconnect();
+            } catch (e) {}
+          }, 40);
+        } catch (e) {
+          try {
+            oldSource?.stop();
+            oldSource?.disconnect();
+            oldGain.disconnect();
+          } catch (err) {}
+        }
+      }
+    } else if (this.currentAudioSource) {
       try {
         this.currentAudioSource.stop();
         this.currentAudioSource.disconnect();
@@ -1072,6 +1215,30 @@ class StoryAudioEngine {
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       window.speechSynthesis.cancel();
       this.currentUtterance = null;
+    }
+  }
+
+  /**
+   * Preload stored audio from browser IndexedDB for instant zero-latency playback
+   */
+  public async preloadFromStorage(): Promise<number> {
+    const ctx = this.getContext();
+    try {
+      const keys = await getAllAudioKeysFromStorage();
+      let loaded = 0;
+      for (const key of keys) {
+        if (!this.audioCache.has(key)) {
+          const stored = await getAudioFromStorage(key);
+          if (stored && stored.audioBase64) {
+            const buffer = this.decodePcmToBuffer(ctx, stored.audioBase64, stored.sampleRate || 24000);
+            this.audioCache.set(key, buffer);
+            loaded++;
+          }
+        }
+      }
+      return loaded;
+    } catch (e) {
+      return 0;
     }
   }
 

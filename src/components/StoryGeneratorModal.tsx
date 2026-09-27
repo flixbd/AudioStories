@@ -282,6 +282,63 @@ export const StoryGeneratorModal: React.FC<StoryGeneratorModalProps> = ({
   const handleDirectLoadStory = () => {
     if (!directStoryJson) return;
 
+    let rawActs = directStoryJson.acts;
+    if (!Array.isArray(rawActs) && typeof rawActs === 'object' && rawActs !== null) {
+      rawActs = Object.values(rawActs);
+    }
+    if (!Array.isArray(rawActs) || rawActs.length === 0) {
+      rawActs = [
+        {
+          actNumber: 1,
+          actTitle: 'পর্ব ১: সূচনা',
+          sfx: '',
+          bgm: '',
+          narratorTone: 'গম্ভীর ও প্রজ্ঞাপূর্ণ',
+          ambientType: 'dawn_mist',
+          scenes: [
+            {
+              id: 'sc-1-1',
+              speaker: 'কথক',
+              emotion: 'স্বগত ভাষণ',
+              text: directStoryJson.philosophicalOpening || 'গল্প শুরু হতে চলেছে...',
+              characterKey: 'narrator',
+            },
+          ],
+        },
+      ];
+    }
+
+    const formattedActs = rawActs.map((act: any, actIdx: number) => {
+      let rawScenes = Array.isArray(act?.scenes)
+        ? act.scenes
+        : Array.isArray(act?.dialogues)
+        ? act.dialogues
+        : Array.isArray(act?.lines)
+        ? act.lines
+        : [];
+      if (rawScenes.length === 0) {
+        rawScenes = [
+          {
+            id: `sc-${actIdx + 1}-1`,
+            speaker: 'কথক',
+            emotion: 'স্বগত ভাষণ',
+            text: act?.actTitle || 'দৃশ্য বর্ণনা',
+            characterKey: 'narrator',
+          },
+        ];
+      }
+      return {
+        ...act,
+        actNumber: act.actNumber || actIdx + 1,
+        ambientType: act.ambientType || 'dawn_mist',
+        scenes: rawScenes.map((sc: any, scIdx: number) => ({
+          ...sc,
+          id: sc.id || `sc-${actIdx + 1}-${scIdx + 1}`,
+          characterKey: sc.characterKey || (sc.speaker?.includes('কথক') ? 'narrator' : 'other'),
+        })),
+      };
+    });
+
     const formattedStory: StoryData = {
       ...directStoryJson,
       id: directStoryJson.id || 'imported-' + Date.now(),
@@ -289,16 +346,7 @@ export const StoryGeneratorModal: React.FC<StoryGeneratorModalProps> = ({
         coverImage ||
         directStoryJson.heroImage ||
         '/src/assets/images/storyteller_studio_1790306569050.jpg',
-      acts: (directStoryJson.acts || []).map((act, actIdx) => ({
-        ...act,
-        actNumber: act.actNumber || actIdx + 1,
-        ambientType: act.ambientType || 'dawn_mist',
-        scenes: (act.scenes || []).map((sc, scIdx) => ({
-          ...sc,
-          id: sc.id || `sc-${actIdx + 1}-${scIdx + 1}`,
-          characterKey: sc.characterKey || (sc.speaker?.includes('কথক') ? 'narrator' : 'other'),
-        })),
-      })),
+      acts: formattedActs,
     };
 
     onStoryGenerated(formattedStory);
@@ -368,34 +416,82 @@ export const StoryGeneratorModal: React.FC<StoryGeneratorModalProps> = ({
           voiceDescription: c.voiceDescription || 'বহুমুখী স্বর',
           characterKey: idx === 0 ? 'narrator' : idx === 1 ? 'nishith' : 'other',
         })),
-        acts: (generated.acts || []).map((act: any, actIdx: number) => ({
-          actNumber: act.actNumber || actIdx + 1,
-          actTitle: act.actTitle || `পর্ব ${actIdx + 1}`,
-          sfx: act.sfx || '',
-          bgm: act.bgm || '',
-          narratorTone: act.narratorTone || 'গম্ভীর ও প্রজ্ঞাপূর্ণ',
-          ambientType:
-            act.actTitle?.includes('বৃষ্টি') || act.sfx?.includes('বৃষ্টি')
-              ? 'monsoon_rain'
-              : act.actTitle?.includes('দরবার') || act.actTitle?.includes('জমিদার')
-              ? 'zamindar_court'
-              : act.actTitle?.includes('কলকাতা') || act.actTitle?.includes('শহর')
-              ? 'calcutta_alley'
-              : 'dawn_mist',
-          scenes: (act.scenes || []).map((sc: any, scIdx: number) => ({
-            id: `gen-sc-${act.actNumber || actIdx + 1}-${scIdx}`,
-            speaker: sc.speaker || 'কথক',
-            emotion: sc.emotion || 'স্বগত ভাষণ',
-            text: sc.text || '',
-            sfxCue: sc.sfxCue,
-            characterKey:
-              sc.speaker?.includes('কথক')
-                ? 'narrator'
-                : sc.speaker?.toLowerCase().includes('nishith')
-                ? 'nishith'
-                : 'other',
-          })),
-        })),
+        acts: (() => {
+          let rawActs = generated.acts;
+          if (!Array.isArray(rawActs) && typeof rawActs === 'object' && rawActs !== null) {
+            rawActs = Object.values(rawActs);
+          }
+          if (!Array.isArray(rawActs) || rawActs.length === 0) {
+            rawActs = [
+              {
+                actNumber: 1,
+                actTitle: 'পর্ব ১: ভূমিকা ও দৃশ্যপট',
+                sfx: 'কুয়াশা ও নিস্তব্ধ প্রকৃতির সুর',
+                bgm: 'সেতারের ধীর বিষাদময় সুর',
+                narratorTone: 'গম্ভীর ও প্রজ্ঞাপূর্ণ',
+                scenes: [
+                  {
+                    speaker: 'কথক',
+                    emotion: 'স্বগত ভাষণ',
+                    text:
+                      generated.philosophicalOpening ||
+                      contextPrompt ||
+                      'মানুষের জীবনে কিছু স্মৃতি চিরকাল নদীর জলের মতো নিঃশব্দে বয়ে চলে...',
+                  },
+                ],
+              },
+            ];
+          }
+
+          return rawActs.map((act: any, actIdx: number) => {
+            let rawScenes = Array.isArray(act?.scenes)
+              ? act.scenes
+              : Array.isArray(act?.dialogues)
+              ? act.dialogues
+              : Array.isArray(act?.lines)
+              ? act.lines
+              : [];
+
+            if (rawScenes.length === 0) {
+              rawScenes = [
+                {
+                  speaker: 'কথক',
+                  emotion: 'স্বগত ভাষণ',
+                  text: act?.actTitle || 'দৃশ্য বর্ণনা...',
+                },
+              ];
+            }
+
+            return {
+              actNumber: act.actNumber || actIdx + 1,
+              actTitle: act.actTitle || `পর্ব ${actIdx + 1}`,
+              sfx: act.sfx || '',
+              bgm: act.bgm || '',
+              narratorTone: act.narratorTone || 'গম্ভীর ও প্রজ্ঞাপূর্ণ',
+              ambientType:
+                act.actTitle?.includes('বৃষ্টি') || act.sfx?.includes('বৃষ্টি')
+                  ? 'monsoon_rain'
+                  : act.actTitle?.includes('দরবার') || act.actTitle?.includes('জমিদার')
+                  ? 'zamindar_court'
+                  : act.actTitle?.includes('কলকাতা') || act.actTitle?.includes('শহর')
+                  ? 'calcutta_alley'
+                  : 'dawn_mist',
+              scenes: rawScenes.map((sc: any, scIdx: number) => ({
+                id: `gen-sc-${act.actNumber || actIdx + 1}-${scIdx + 1}`,
+                speaker: sc.speaker || 'কথক',
+                emotion: sc.emotion || 'স্বগত ভাষণ',
+                text: sc.text || sc.dialogue || sc.line || '',
+                sfxCue: sc.sfxCue,
+                characterKey:
+                  sc.speaker?.includes('কথক')
+                    ? 'narrator'
+                    : sc.speaker?.toLowerCase().includes('nishith')
+                    ? 'nishith'
+                    : 'other',
+              })),
+            };
+          });
+        })(),
         philosophicalOpening:
           generated.acts?.[0]?.scenes?.[0]?.text ||
           'মানুষের জীবনে কিছু স্মৃতি চিরকাল নদীর জলের মতো নিঃশব্দে বয়ে চলে...',

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Volume2, Sparkles, Sliders, BookOpen, HardDrive, Upload } from 'lucide-react';
+import { Volume2, Sparkles, Sliders, BookOpen, HardDrive, Upload, Download } from 'lucide-react';
 import { User } from 'firebase/auth';
 
 interface TopNavProps {
@@ -7,6 +7,7 @@ interface TopNavProps {
   onOpenGenerator: () => void;
   onOpenAnalysis: () => void;
   onOpenDrive: () => void;
+  onOpenExport: () => void;
   activeStoryTitle: string;
   speechEngineMode: 'gemini_neural' | 'browser_native';
   geminiVoicePersona: string;
@@ -19,6 +20,7 @@ export const TopNav: React.FC<TopNavProps> = ({
   onOpenGenerator,
   onOpenAnalysis,
   onOpenDrive,
+  onOpenExport,
   activeStoryTitle,
   speechEngineMode,
   geminiVoicePersona,
@@ -88,6 +90,16 @@ export const TopNav: React.FC<TopNavProps> = ({
             ) : (
               <span>গুগল ড্রাইভ</span>
             )}
+          </button>
+
+          <button
+            onClick={onOpenExport}
+            className="px-3 py-1.5 text-xs font-sans rounded border border-[#D97706]/40 bg-[#201813] hover:bg-[#2A1E16] text-[#F5EFE6] hover:border-[#D97706] transition-all flex items-center gap-1.5 shadow-sm"
+            title="সম্পূর্ণ অডিও ড্রামা MP3 ফাইল হিসেবে ডাউনলোড করুন"
+          >
+            <Download className="w-3.5 h-3.5 text-[#D97706]" />
+            <span className="hidden sm:inline">MP3 ডাউনলোড</span>
+            <span className="sm:hidden">MP3</span>
           </button>
 
           <button

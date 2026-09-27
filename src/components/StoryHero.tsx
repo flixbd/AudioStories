@@ -1,6 +1,6 @@
 import React from 'react';
 import { StoryData } from '../data/stories';
-import { Play, Pause, RotateCcw, Volume2, Mic, HardDrive, Sparkles } from 'lucide-react';
+import { Play, Pause, RotateCcw, Volume2, Mic, HardDrive, Sparkles, Download } from 'lucide-react';
 
 interface StoryHeroProps {
   story: StoryData;
@@ -10,6 +10,7 @@ interface StoryHeroProps {
   currentActIndex: number;
   onEditIntro?: () => void;
   onOpenDrive?: () => void;
+  onOpenExport?: () => void;
   speechEngineMode?: 'gemini_neural' | 'browser_native';
   onChangeSpeechEngineMode?: (mode: 'gemini_neural' | 'browser_native') => void;
   isRateLimited?: boolean;
@@ -25,6 +26,7 @@ export const StoryHero: React.FC<StoryHeroProps> = ({
   currentActIndex,
   onEditIntro,
   onOpenDrive,
+  onOpenExport,
   speechEngineMode = 'gemini_neural',
   onChangeSpeechEngineMode,
   isRateLimited = false,
@@ -53,9 +55,15 @@ export const StoryHero: React.FC<StoryHeroProps> = ({
             <span>৬ পর্বের পূর্ণাঙ্গ অডিও ড্রামা</span>
           </div>
 
-          <div className="hidden sm:flex items-center gap-1.5 text-xs text-[#E0D5C1] bg-[#120F0D]/80 backdrop-blur-md px-3 py-1.5 rounded border border-[#2C241E]">
-            <Mic className="w-3.5 h-3.5 text-[#D97706]" />
-            <span>@BengaliClassicsByArnab শৈলী</span>
+          <div className="flex items-center gap-2">
+            <div className="hidden sm:flex items-center gap-1.5 text-xs text-[#E0D5C1] bg-[#120F0D]/80 backdrop-blur-md px-3 py-1.5 rounded border border-[#2C241E]">
+              <Mic className="w-3.5 h-3.5 text-[#D97706]" />
+              <span>@BengaliClassicsByArnab শৈলী</span>
+            </div>
+            <div className="hidden md:flex items-center gap-1.5 text-xs text-emerald-300 bg-emerald-950/70 backdrop-blur-md px-2.5 py-1.5 rounded border border-emerald-500/40">
+              <HardDrive className="w-3.5 h-3.5 text-emerald-400" />
+              <span>ব্রাউজার অটো-সেভ সক্রিয়</span>
+            </div>
           </div>
         </div>
 
@@ -88,20 +96,13 @@ export const StoryHero: React.FC<StoryHeroProps> = ({
           <div className="flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-amber-400 shrink-0 animate-pulse" />
             <span>
-              Gemini AI অডিও ফ্রি-টিয়ার কোটা বিরতি চলছে (বাকি {rateLimitCooldownSec} সে.) — গল্প থেমে নেই, নিরবচ্ছিন্নভাবে ব্রাউজারের বাংলা কণ্ঠে পাঠ চলমান রয়েছে।
+              আর্নব স্টাইল নিউরাল অডিও কোটা বিরতি চলছে (বাকি {rateLimitCooldownSec} সে.) — খাঁটি বাংলা ও আর্নব স্টাইলের গম্ভীর প্রমিত বাচনভঙ্গি বজায় রাখতে বিরতি শেষে স্বয়ংক্রিয়ভাবে আর্নব ভয়েসে পাঠ হবে।
             </span>
           </div>
           <div className="flex items-center gap-2">
             <span className="font-mono text-[11px] px-2 py-0.5 rounded bg-amber-900/60 border border-amber-500/40 text-amber-300">
-              {rateLimitCooldownSec}s অপেক্ষা
+              {rateLimitCooldownSec}s পর স্বয়ংক্রিয় প্লে
             </span>
-            <button
-              type="button"
-              onClick={() => onChangeSpeechEngineMode?.('browser_native')}
-              className="text-[11px] underline hover:text-[#FFF] text-amber-300"
-            >
-              ব্রাউজার মোডে থাকুন
-            </button>
           </div>
         </div>
       )}
@@ -134,11 +135,11 @@ export const StoryHero: React.FC<StoryHeroProps> = ({
                       : 'bg-[#D97706]/20 text-[#F59E0B] border border-[#D97706]/40 font-medium'
                     : 'text-[#8C8275] hover:text-[#C2B7A3]'
                 }`}
-                title="Gemini AI নিউরাল বাচনভঙ্গি (অনবদ্য সাহিত্যিক কণ্ঠ)"
+                title="আর্নব স্টাইল নিউরাল ভয়েস (@BengaliClassicsByArnab - খাঁটি প্রমিত বাংলা সাহিত্যিক কণ্ঠ)"
               >
                 <Sparkles className="w-3 h-3 text-[#D97706]" />
-                <span className="hidden sm:inline">এআই কণ্ঠ</span>
-                <span className="sm:hidden">AI</span>
+                <span className="hidden sm:inline">আর্নব ভয়েস</span>
+                <span className="sm:hidden">আর্নব</span>
                 {isRateLimited && rateLimitCooldownSec > 0 && (
                   <span className="text-[10px] px-1 rounded bg-amber-500/20 text-amber-200 font-mono">
                     {rateLimitCooldownSec}s
@@ -153,10 +154,10 @@ export const StoryHero: React.FC<StoryHeroProps> = ({
                     ? 'bg-[#D97706]/20 text-[#F59E0B] border border-[#D97706]/40 font-medium'
                     : 'text-[#8C8275] hover:text-[#C2B7A3]'
                 }`}
-                title="ডিভাইসের লোকাল বাংলা ভয়েস রিডার"
+                title="ব্রাউজারের বিল্ট-ইন ভয়েস (উচ্চারণে সীমাবদ্ধতা থাকতে পারে)"
               >
                 <Volume2 className="w-3 h-3 text-[#A89F91]" />
-                <span className="hidden sm:inline">ব্রাউজার কণ্ঠ</span>
+                <span className="hidden sm:inline">ডিভাইস ভয়েস</span>
                 <span className="sm:hidden">Local</span>
               </button>
             </div>
@@ -170,6 +171,17 @@ export const StoryHero: React.FC<StoryHeroProps> = ({
             >
               <HardDrive className="w-4 h-4 text-[#D97706]" />
               <span className="hidden md:inline">ড্রাইভে সংরক্ষণ</span>
+            </button>
+          )}
+
+          {onOpenExport && (
+            <button
+              onClick={onOpenExport}
+              className="p-2.5 rounded-lg border border-[#D97706]/40 bg-[#1A1411] hover:bg-[#261E1A] text-[#F5EFE6] hover:border-[#D97706] transition-colors flex items-center gap-1.5 text-xs font-sans shadow-sm"
+              title="সম্পূর্ণ অডিও ড্রামা MP3 ফাইল হিসেবে ডাউনলোড করুন"
+            >
+              <Download className="w-4 h-4 text-[#D97706]" />
+              <span className="hidden md:inline">MP3 ডাউনলোড</span>
             </button>
           )}
 

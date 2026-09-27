@@ -337,48 +337,55 @@ app.post('/api/tts/generate', async (req: Request, res: Response) => {
         success: false,
         rateLimited: true,
         retryAfterSeconds: remainingSeconds,
-        error: `Gemini TTS free-tier quota exceeded. Cooldown active for ${remainingSeconds}s. Using browser voice fallback.`,
+        error: `আর্নব স্টাইল নিউরাল ভয়েস কোটা বিরতি (${remainingSeconds} সেকেন্ড)। স্বয়ংক্রিয়ভাবে অপেক্ষা করা হচ্ছে।`,
       });
+    }
+
+    // Clean text to avoid speech model pronouncing speaker labels or bracketed stage directions
+    let spokenText = trimmedText;
+    spokenText = spokenText.replace(/^(কথক|নিশীথ|নবনীতা|মিনতি|নির্মল|প্রজা|চরিত্র)[\s]*[:–—\-]/i, '').trim();
+
+    // Extract stage directions like "(স্বগত ভাষণ)", "(গম্ভীর স্বরে)" to inform emotion directive
+    const stageMatches = spokenText.match(/\(([^\)]+)\)/g);
+    let extractedEmotion = '';
+    if (stageMatches) {
+      extractedEmotion = stageMatches.map((m) => m.replace(/[\(\)]/g, '')).join(', ');
+      spokenText = spokenText.replace(/\([^\)]+\)/g, ' ').replace(/\s+/g, ' ').trim();
     }
 
     // Advanced Bengali storyteller phonetic & performance directives
     // Modeled precisely after renowned Bengali audio-drama narrator Arnab (@BengaliClassicsByArnab)
+    const effectiveEmotion = [emotion, extractedEmotion].filter(Boolean).join(', ');
     let styleDirective =
-      'Native Bengali (বাংলাদেশ ও পশ্চিমবঙ্গ) master literary audio-drama narrator. Speak in standard fluent Shuddho Bangla (প্রমিত বিশুদ্ধ বাংলা) with authentic Bengali phonetics, correct matra and juktakhor (যুক্তাক্ষর) pronunciation, nuanced breath pauses, and deep literary gravitas.';
+      'Native master literary solo audio drama storyteller Arnab (@BengaliClassicsByArnab). Deliver in standard, fluent, resonant Shuddho Bangla (প্রমিত বিশুদ্ধ বাংলা). Speak with authentic Bengali phonetics, natural sentence cadence, deep baritone gravitas, and sincere dramatic pauses. Do not pronounce with English or foreign accent.';
 
     if (characterKey === 'narrator') {
-      styleDirective +=
-        ' As the introspective solo narrator, deliver with a resonant baritone, contemplative depth, evocative pauses after punctuation, and sincere poetic emotion that touches the soul.';
+      styleDirective += ` Role: Solo introspective narrator. Tone: ${effectiveEmotion || 'গম্ভীর, ভাবুক ও প্রজ্ঞাপূর্ণ'}.`;
     } else if (characterKey === 'nishith') {
-      styleDirective +=
-        ' As Nishith (নিশীথ), speak with heartfelt vulnerability, youthful literary idealism, and mature introspective dignity.';
+      styleDirective += ` Role: Nishith (নিশীথ). Tone: ${effectiveEmotion || 'ভাবুক, সংবেদনশীল ও মর্যাদাশীল'}.`;
     } else if (characterKey === 'nabanita') {
-      styleDirective +=
-        ' As Nabanita (নবনীতা), articulate with sharp crystalline clarity, aristocratic pride, icy defiance, and unwavering tragic self-respect.';
+      styleDirective += ` Role: Nabanita (নবনীতা). Tone: ${effectiveEmotion || 'দৃঢ়, আত্মমর্যাদাশীল ও হিমশীতল অভিমানী'}.`;
     } else if (characterKey === 'minati') {
-      styleDirective +=
-        ' As Minati (মিনতি), speak with tender warmth, serene melody, humble satisfaction, and affectionate domestic sweetness.';
+      styleDirective += ` Role: Minati (মিনতি). Tone: ${effectiveEmotion || 'স্নিগ্ধ, স্নেহময় ও মধুর'}.`;
     } else if (characterKey === 'nirmal') {
-      styleDirective +=
-        ' As Nirmal (ম্যানেজার নির্মল), speak with abrasive authority, cruel condescension, and heavy arrogant timber.';
+      styleDirective += ` Role: Manager Nirmal (নির্মল). Tone: ${effectiveEmotion || 'কর্কশ, রুক্ষ ও কর্তৃত্বপরায়ণ'}.`;
     } else if (characterKey === 'proja') {
-      styleDirective +=
-        ' As the peasant (প্রজা), speak with plaintive trembling desperation and raw emotional vulnerability.';
+      styleDirective += ` Role: Peasant (প্রজা). Tone: ${effectiveEmotion || 'কাতর ও বিনম্র আর্তি'}.`;
     }
 
     let ttsResponse;
     try {
+      // Primary model: gemini-3.8-flash-lite-tts for high throughput general Bengali narration
       ttsResponse = await ai.models.generateContent({
-        model: 'gemini-3.8-flash-tts',
+        model: 'gemini-3.8-flash-lite-tts',
         contents: [
           {
             role: 'user',
             parts: [
               {
-                text: trimmedText,
+                text: spokenText,
                 speechMetadata: {
-                  speaker: speaker,
-                  style: `${styleDirective} Emotion: ${emotion}. Speak pure natural Bengali without English accent.`,
+                  style: styleDirective,
                 },
               },
             ],
@@ -402,24 +409,23 @@ app.post('/api/tts/generate', async (req: Request, res: Response) => {
           success: false,
           rateLimited: true,
           retryAfterSeconds: quotaCheck.retrySeconds,
-          error: `Gemini TTS quota exceeded. Resumes in ${quotaCheck.retrySeconds}s.`,
+          error: `Gemini TTS কোটা বিরতি (${quotaCheck.retrySeconds} সেকেন্ড)। স্বয়ংক্রিয়ভাবে অপেক্ষা করা হচ্ছে।`,
         });
       }
 
-      // If it wasn't a quota limit error, try flash-lite-tts
-      console.warn('Fallback to gemini-3.8-flash-lite-tts due to:', modelErr?.message || modelErr);
+      // If it wasn't a quota limit error, try gemini-3.8-flash-tts
+      console.warn('Fallback to gemini-3.8-flash-tts due to:', modelErr?.message || modelErr);
       try {
         ttsResponse = await ai.models.generateContent({
-          model: 'gemini-3.8-flash-lite-tts',
+          model: 'gemini-3.8-flash-tts',
           contents: [
             {
               role: 'user',
               parts: [
                 {
-                  text: trimmedText,
+                  text: spokenText,
                   speechMetadata: {
-                    speaker: speaker,
-                    style: `${styleDirective} Emotion: ${emotion}. Pure Bengali pronunciation.`,
+                    style: styleDirective,
                   },
                 },
               ],
@@ -434,18 +440,18 @@ app.post('/api/tts/generate', async (req: Request, res: Response) => {
             },
           },
         });
-      } catch (liteErr: any) {
-        const liteQuota = parseQuotaError(liteErr);
-        if (liteQuota.isQuota) {
-          geminiTtsCooldownUntil = Date.now() + liteQuota.retrySeconds * 1000;
+      } catch (secondErr: any) {
+        const secQuota = parseQuotaError(secondErr);
+        if (secQuota.isQuota) {
+          geminiTtsCooldownUntil = Date.now() + secQuota.retrySeconds * 1000;
           return res.json({
             success: false,
             rateLimited: true,
-            retryAfterSeconds: liteQuota.retrySeconds,
-            error: `Gemini TTS quota exceeded. Resumes in ${liteQuota.retrySeconds}s.`,
+            retryAfterSeconds: secQuota.retrySeconds,
+            error: `Gemini TTS কোটা বিরতি (${secQuota.retrySeconds} সেকেন্ড)। স্বয়ংক্রিয়ভাবে অপেক্ষা করা হচ্ছে।`,
           });
         }
-        throw liteErr;
+        throw secondErr;
       }
     }
 
